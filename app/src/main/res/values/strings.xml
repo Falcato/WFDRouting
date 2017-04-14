@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">WFD Routing</string>
+    <string name="search_for_a_url">e.g. www.google.com</string>
+    <string name="go">Go!</string>
+    <string name="title_activity_web_view">WebView</string>
+    <string name="title_home">Home</string>
+    <string name="title_dashboard">Dashboard</string>
+    <string name="title_notifications">Notifications</string>
+    <string name="back">Back</string>
+    <string name="readme_text">Welcome,\n\nThis application is now running on background acting
+        as peer to other devices, providing routing or network services, depending on the ability
+        of connecting to the Internet.\n\nYou can minimize this application to keep providing these
+        services to peers or go to the client area where you can request these services from nearby
+        devices.\n\nDisclaimer: this application changes your WiFi Direct advertising name to your
+        Bluetooth MAC address. Security issues may come from this action. Be aware.</string>
+    <string name="how_to_client">How To:\n\nTo use the client you need to enter a valid address of
+        a website like so: www.google.com. The necessary headers will be automatically added to your
+        URL.\nIn case of a bad address input, an error page will be displayed.</string>
+    <string name="peerListText">A list of peers will appear shortly.</string>
+    <string name="peerText">Peer response will appear here.</string>
+</resources>
