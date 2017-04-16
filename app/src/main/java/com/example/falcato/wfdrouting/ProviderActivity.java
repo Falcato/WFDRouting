@@ -123,7 +123,7 @@ public class ProviderActivity extends AppCompatActivity{
                     TextView peerDisplay = (TextView) findViewById(R.id.peerListText);
                     peerDisplay.setText(peerInfo);
                     //CONNECT
-                    connectPeers();
+                    advertisePeers();
                 }
                 if (peers.size() == 0) {
                     Toast.makeText(ProviderActivity.this, "No peers found!",
@@ -153,6 +153,23 @@ public class ProviderActivity extends AppCompatActivity{
         }
     }
 
+    public void analyzeMsg(String msg) {
+        // Routing message
+        if (msg.contains("ADV")){
+            // Update routing table
+            Log.i(TAG, "Received an advertising message");
+            ((MyApplication) ProviderActivity.this.getApplication()).updateRouteTable(msg);
+        // Request message
+        }else if (msg.contains("RQT")){
+            // Process the webpage request
+            Log.i(TAG, "Received a request message");
+        }else if (msg.contains("RSP")){
+            // Process the webpage response
+            Log.i(TAG, "Received a response message");
+        }
+
+    }
+
     // The Handler that gets information back from the BluetoothChatService
     private final Handler mHandler = new Handler() {
         @Override
@@ -178,16 +195,16 @@ public class ProviderActivity extends AppCompatActivity{
                     byte[] writeBuf = (byte[]) msg.obj;
                     // construct a string from the buffer
                     String writeMessage = new String(writeBuf);
-                    Toast.makeText(ProviderActivity.this, "I've sent: " + writeMessage,
-                            Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "I've sent: " + writeMessage);
                     break;
                 case MESSAGE_READ:
                     byte[] readBuf = (byte[]) msg.obj;
                     // construct a string from the valid bytes in the buffer
                     String readMessage = new String(readBuf, 0, msg.arg1);
-                    Log.d(TAG, "Received a message: " + readMessage);
                     TextView peerText = (TextView) findViewById(R.id.peerText);
                     peerText.setText(readMessage);
+                    // Analyze received message
+                    analyzeMsg(readMessage);
                     break;
                 case MESSAGE_DEVICE_NAME:
                     // save the connected device's name
@@ -218,13 +235,13 @@ public class ProviderActivity extends AppCompatActivity{
         mService.connect(device);
     }
 
-    public void connectPeers(){
+    public void advertisePeers(){
         for (WifiP2pDevice peer : peers) {
             if (peer.deviceName.contains("WFD;")) {
                 final WifiP2pConfig config = new WifiP2pConfig();
                 config.deviceAddress = peer.deviceName.split(";")[1].toUpperCase();
 
-                //CONNECT
+                // Connect
                 connectDevice(config.deviceAddress);
                 for (int i=0; mService.getState() != BluetoothService.STATE_CONNECTED; i++){
                     if (i > 999999999){
@@ -233,7 +250,9 @@ public class ProviderActivity extends AppCompatActivity{
                         break;
                     }
                 }
-                sendMessage("Hello!");
+                // Advertise own MAC adress
+                String adv = "ADV;" + config.deviceAddress + ";1";
+                sendMessage(adv);
             }
         }
     }

@@ -6,11 +6,17 @@ import android.util.Log;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MyApplication extends Application {
+    private static final String TAG = "WFDRouting";
     private boolean hasNet;
 
+    public Map<String, Integer> routeTable = new HashMap<>();
+
     public boolean getHasNet() { return hasNet; }
+
     public void setHasNet(boolean hasNet) {
         this.hasNet = hasNet;
     }
@@ -53,5 +59,42 @@ public class MyApplication extends Application {
         } catch (InvocationTargetException e) {
             e.printStackTrace();
         }
+    }
+
+    public void updateRouteTable (String msg) {
+        String dest = msg.split(";")[1];
+        int hops = Integer.parseInt(msg.split(";")[2]);
+
+        // If already contains current node
+        if (routeTable.containsKey(dest)){
+            // If new advertise is better than previous
+            if (hops <= routeTable.get(dest))
+                routeTable.put(dest, hops);
+                Log.i(TAG, "Updated table: " + routeTable.toString());
+        // If table doesn't contain node
+        }else{
+            // Insert new node and hops
+            routeTable.put(dest, hops);
+            Log.i(TAG, "Inserted table: " + routeTable.toString());
+        }
+    }
+
+    public boolean checkAdvertise (String id) {
+        String dest = id.split(";")[1];
+        int hops = Integer.parseInt(id.split(";")[2]);
+
+        // Check if peer is running application
+        if (id.contains("WFD;")){
+            // If device already in routing table
+            if (routeTable.containsKey(dest)){
+                // If number of hops is smaller than table
+                if (hops < routeTable.get(dest)){
+                    return true;
+                }
+            }else{
+                return true;
+            }
+        }
+        return false;
     }
 }
