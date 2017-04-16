@@ -97,4 +97,9 @@ public class MyApplication extends Application {
         }
         return false;
     }
+
+    public int getHops() {
+
+        return -1;
+    }
 }

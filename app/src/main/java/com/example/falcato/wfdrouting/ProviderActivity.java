@@ -123,7 +123,7 @@ public class ProviderActivity extends AppCompatActivity{
                     TextView peerDisplay = (TextView) findViewById(R.id.peerListText);
                     peerDisplay.setText(peerInfo);
                     //CONNECT
-                    advertisePeers();
+                    advertisePeers(true);
                 }
                 if (peers.size() == 0) {
                     Toast.makeText(ProviderActivity.this, "No peers found!",
@@ -235,9 +235,15 @@ public class ProviderActivity extends AppCompatActivity{
         mService.connect(device);
     }
 
-    public void advertisePeers(){
+    public void advertisePeers(boolean hasNet){
+        String adv;
+        int hops;
+
         for (WifiP2pDevice peer : peers) {
-            if (peer.deviceName.contains("WFD;")) {
+            // If peer needs to be advertised
+            if (((MyApplication) ProviderActivity.this.getApplication()).
+                    checkAdvertise(peer.deviceName)) {
+
                 final WifiP2pConfig config = new WifiP2pConfig();
                 config.deviceAddress = peer.deviceName.split(";")[1].toUpperCase();
 
@@ -251,7 +257,12 @@ public class ProviderActivity extends AppCompatActivity{
                     }
                 }
                 // Advertise own MAC adress
-                String adv = "ADV;" + config.deviceAddress + ";1";
+                if (hasNet)
+                    hops = 1;
+                else
+                    hops = ((MyApplication) ProviderActivity.this.getApplication()).getHops() + 1;
+
+                adv = "ADV;" + config.deviceAddress + ";" + hops;
                 sendMessage(adv);
             }
         }
