@@ -5,6 +5,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,10 +20,13 @@ public class MainActivity extends AppCompatActivity {
         new InternetCheck(this).isInternetConnectionAvailable(new InternetCheck.InternetCheckListener() {
             @Override
             public void onComplete(boolean connected) {
+                TextView connText = (TextView) findViewById(R.id.textConn);
                 if(connected) {
                     ((MyApplication) MainActivity.this.getApplication()).setHasNet(true);
+                    connText.setText("I am connected!");
                 }else{
                     ((MyApplication) MainActivity.this.getApplication()).setHasNet(false);
+                    connText.setText("I am NOT connected!");
                 }
             }
         });

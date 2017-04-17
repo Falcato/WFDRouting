@@ -10,9 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MyApplication extends Application {
+
     private static final String TAG = "WFDRouting";
     private boolean hasNet;
-
     public Map<String, Integer> routeTable = new HashMap<>();
 
     public boolean getHasNet() { return hasNet; }
@@ -79,26 +79,7 @@ public class MyApplication extends Application {
         }
     }
 
-    public boolean checkAdvertise (String id) {
-        String dest = id.split(";")[1];
-        int hops = Integer.parseInt(id.split(";")[2]);
-
-        // Check if peer is running application
-        if (id.contains("WFD;")){
-            // If device already in routing table
-            if (routeTable.containsKey(dest)){
-                // If number of hops is smaller than table
-                if (hops < routeTable.get(dest)){
-                    return true;
-                }
-            }else{
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public int getHops() {
+    public int getMinHop() {
 
         return -1;
     }

@@ -56,6 +56,9 @@ public class ProviderActivity extends AppCompatActivity{
     BluetoothAdapter mBluetoothAdapter;
     boolean groupCreated = false, peerDiscoveryInit = false;
 
+    // Last received nr hops from ADV message
+    int rcvHops = -1;
+
     private List<WifiP2pDevice> peers = new ArrayList<>();
 
     @Override
@@ -76,32 +79,37 @@ public class ProviderActivity extends AppCompatActivity{
         mManager = (WifiP2pManager) getSystemService(Context.WIFI_P2P_SERVICE);
         mChannel = mManager.initialize(this, getMainLooper(), null);
 
-        //Check if WiFi is enabled
+        // Check if WiFi is enabled
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if(!wifiManager.isWifiEnabled())
             wifiManager.setWifiEnabled(true);
-        //Check if Bluetooth is enabled
+        // Check if Bluetooth is enabled
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (!mBluetoothAdapter.isEnabled()) {
             mBluetoothAdapter.enable();
         }
-        //Initialize Wifi Direct Service
+        // Initialize Wifi Direct Service
         mReceiver = new WiFiDirectBroadcastReceiver(mManager, mChannel, this, peerListListener);
 
-        //Initialize Bluetooth Service
+        // Initialize Bluetooth Service
         mService = new BluetoothService(this, mHandler);
         mOutStringBuffer = new StringBuffer("");
 
-        //Change device's name
+        // Change device's name
         String devName = "WFD;" + getMAC();
         ((MyApplication) ProviderActivity.this.getApplication()).changeP2Pname(mManager, mChannel,
                 devName);
 
         if(((MyApplication) ProviderActivity.this.getApplication()).getHasNet()){
-            //Discover Peers
+            // Update route table with self and 0 hops
+            ((MyApplication) ProviderActivity.this.getApplication()).updateRouteTable("ADV;" +
+            getMAC() + ";0");
+            // Discover Peers
             discoverPeers();
+            // Create group after initial advertisement has been done
+            createGroupAsOwner();
         }else{
-            //Create Group
+            // Create Group
             createGroupAsOwner();
         }
     }
@@ -109,7 +117,7 @@ public class ProviderActivity extends AppCompatActivity{
     private WifiP2pManager.PeerListListener peerListListener = new WifiP2pManager.PeerListListener() {
         @Override
         public void onPeersAvailable(WifiP2pDeviceList peerList) {
-            if (!groupCreated) {
+
                 Collection<WifiP2pDevice> refreshedPeers = peerList.getDeviceList();
                 String peerInfo = "Available peers: \n";
 
@@ -122,9 +130,10 @@ public class ProviderActivity extends AppCompatActivity{
                     }
                     TextView peerDisplay = (TextView) findViewById(R.id.peerListText);
                     peerDisplay.setText(peerInfo);
-                    //CONNECT
-                    advertisePeers(true);
-                }
+
+                    // Advertise to peers
+                    if (mService != null)
+                        advertisePeers();
                 if (peers.size() == 0) {
                     Toast.makeText(ProviderActivity.this, "No peers found!",
                             Toast.LENGTH_SHORT).show();
@@ -132,43 +141,6 @@ public class ProviderActivity extends AppCompatActivity{
             }
         }
     };
-
-    private void sendMessage(String message) {
-        // Check that we're actually connected before trying anything
-        if (mService.getState() != BluetoothService.STATE_CONNECTED) {
-            Toast.makeText(ProviderActivity.this, "Unable to send, not connected!",
-                    Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Check that there's actually something to send
-        if (message.length() > 0) {
-            // Get the message bytes and tell the BluetoothChatService to write
-            byte[] send = message.getBytes();
-            mService.write(send);
-            Log.d(TAG, "Sent a message");
-
-            // Reset out string buffer to zero and clear the edit text field
-            mOutStringBuffer.setLength(0);
-        }
-    }
-
-    public void analyzeMsg(String msg) {
-        // Routing message
-        if (msg.contains("ADV")){
-            // Update routing table
-            Log.i(TAG, "Received an advertising message");
-            ((MyApplication) ProviderActivity.this.getApplication()).updateRouteTable(msg);
-        // Request message
-        }else if (msg.contains("RQT")){
-            // Process the webpage request
-            Log.i(TAG, "Received a request message");
-        }else if (msg.contains("RSP")){
-            // Process the webpage response
-            Log.i(TAG, "Received a response message");
-        }
-
-    }
 
     // The Handler that gets information back from the BluetoothChatService
     private final Handler mHandler = new Handler() {
@@ -220,6 +192,52 @@ public class ProviderActivity extends AppCompatActivity{
         }
     };
 
+    private void sendMessage(String message) {
+        // Check that we're actually connected before trying anything
+        if (mService.getState() != BluetoothService.STATE_CONNECTED) {
+            Toast.makeText(ProviderActivity.this, "Unable to send, not connected!",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Check that there's actually something to send
+        if (message.length() > 0) {
+            // Get the message bytes and tell the BluetoothChatService to write
+            byte[] send = message.getBytes();
+            mService.write(send);
+            Log.d(TAG, "Sent a message");
+
+            // Reset out string buffer to zero and clear the edit text field
+            mOutStringBuffer.setLength(0);
+        }
+    }
+
+    public void analyzeMsg(String msg) {
+        // Routing message
+        if (msg.contains("ADV")){
+            // Update routing table
+            Log.i(TAG, "Received an advertising message");
+            rcvHops = Integer.parseInt(msg.split(";")[2]);
+            // Check whether to advertise or not
+            if (rcvHops < ((MyApplication) ProviderActivity.this.getApplication()).getMinHop()) {
+                Log.i(TAG, "Will advertise");
+                ((MyApplication) ProviderActivity.this.getApplication()).updateRouteTable(msg);
+                discoverPeers();
+            }else{
+                Log.i(TAG, "Will NOT advertise");
+                ((MyApplication) ProviderActivity.this.getApplication()).updateRouteTable(msg);
+            }
+
+        // Request message
+        }else if (msg.contains("RQT")){
+            // Process the webpage request
+            Log.i(TAG, "Received a request message");
+        }else if (msg.contains("RSP")){
+            // Process the web page response
+            Log.i(TAG, "Received a response message");
+        }
+    }
+
     private String getMAC () {
         return android.provider.Settings.Secure.getString(this.getContentResolver(),
                 "bluetooth_address");
@@ -235,14 +253,12 @@ public class ProviderActivity extends AppCompatActivity{
         mService.connect(device);
     }
 
-    public void advertisePeers(boolean hasNet){
+    public void advertisePeers(){
         String adv;
-        int hops;
 
         for (WifiP2pDevice peer : peers) {
             // If peer needs to be advertised
-            if (((MyApplication) ProviderActivity.this.getApplication()).
-                    checkAdvertise(peer.deviceName)) {
+            if (peer.deviceName.contains("WFD;")) {
 
                 final WifiP2pConfig config = new WifiP2pConfig();
                 config.deviceAddress = peer.deviceName.split(";")[1].toUpperCase();
@@ -256,16 +272,14 @@ public class ProviderActivity extends AppCompatActivity{
                         break;
                     }
                 }
-                // Advertise own MAC adress
-                if (hasNet)
-                    hops = 1;
-                else
-                    hops = ((MyApplication) ProviderActivity.this.getApplication()).getHops() + 1;
-
+                // Advertise own MAC adress after previously checked if needed to advertise
+                int hops = ((MyApplication) ProviderActivity.this.getApplication()).getMinHop() + 1;
                 adv = "ADV;" + config.deviceAddress + ";" + hops;
                 sendMessage(adv);
             }
         }
+        // After the advertisement start listening for connections
+        mService.start();
     }
 
     public void createGroupAsOwner(){
@@ -276,7 +290,14 @@ public class ProviderActivity extends AppCompatActivity{
                     groupCreated = true;
                     Toast.makeText(ProviderActivity.this, "P2P group creation successful.",
                             Toast.LENGTH_SHORT).show();
-                    //LISTEN
+                    // Listen to new messages
+                    if (mService != null) {
+                        // Only if the state is STATE_NONE, do we know that we haven't started already
+                        if (mService.getState() == BluetoothService.STATE_NONE) {
+                            mService.start();
+                        }
+                    }
+                    // Set own MAC in UI
                     TextView peerText = (TextView) findViewById(R.id.peerText);
                     peerText.setText(getMAC());
                 }
@@ -289,7 +310,13 @@ public class ProviderActivity extends AppCompatActivity{
                             groupCreated = true;
                             Toast.makeText(ProviderActivity.this, "Device already is a group owner!",
                                     Toast.LENGTH_SHORT).show();
-                            //LISTEN
+                            // Listen to new messages
+                            if (mService != null) {
+                                // Only if the state is STATE_NONE, do we know that we haven't started already
+                                if (mService.getState() == BluetoothService.STATE_NONE) {
+                                    mService.start();
+                                }
+                            }
                         }
                         }
                     });
